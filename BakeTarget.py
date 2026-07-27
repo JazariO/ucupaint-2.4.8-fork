@@ -114,6 +114,10 @@ def update_new_bake_target_preset(self, context):
         suffix = ' ORM'
     elif self.preset == 'DX_NORMAL':
         suffix = ' Normal DirectX'
+    elif self.preset == 'DM':
+        suffix = '_DM'
+    elif self.preset == 'NOS':
+        suffix = '_NOS'
 
     #self.name = get_unique_name(tree_name + suffix, yp.bake_targets)
     self.name = get_unique_name(tree_name + suffix, bpy.data.images)
@@ -132,11 +136,13 @@ class YNewBakeTarget(bpy.types.Operator):
 
     preset : EnumProperty(
         name = 'Bake Target Preset',
-        description = 'Customm bake target preset',
+        description = 'Custom bake target preset',
         items = (
             ('BLANK', 'Blank', ''),
             ('ORM', 'GLTF ORM', ''),
             ('DX_NORMAL', 'DirectX Normal', ''),
+            ('DM', 'DA: Diffuse RGB, Metallic A', ''),
+            ('NOS', 'NOS: Normal RG, Occlusion B, Roughness A (inverted to Smoothness)', ''),
         ),
         default = 'BLANK',
         update = update_new_bake_target_preset
@@ -208,6 +214,35 @@ class YNewBakeTarget(bpy.types.Operator):
                     bt.b.subchannel_index = '2'
 
                     bt.g.invert_value = True
+
+        elif self.preset == 'DM':
+            for ch in yp.channels:
+                if ch.name in {'Color'}:
+                    bt.r.channel_name = ch.name
+                    bt.g.channel_name = ch.name
+                    bt.b.channel_name = ch.name
+
+                    bt.r.subchannel_index = '0'
+                    bt.g.subchannel_index = '1'
+                    bt.b.subchannel_index = '2'
+                elif ch.name in {'Metallic', }:
+                    bt.a.channel_name = ch.name
+                    bt.a.subchannel_index = '0'
+
+        elif self.preset == 'NOS':
+            for ch in yp.channels:
+                print("ch.name = " + ch.name)
+                if ch.name == 'Normal':
+                    bt.r.channel_name = ch.name
+                    bt.g.channel_name = ch.name
+
+                    bt.r.subchannel_index = '0'
+                    bt.g.subchannel_index = '1'
+                elif ch.name in {'Ambient Occlusion', 'AO'}:
+                    bt.b.channel_name = ch.name
+                elif ch.name in {'Roughness', 'R'}:
+                    bt.a.channel_name = ch.name
+                    bt.a.invert_value = True
 
         yp.active_bake_target_index = len(yp.bake_targets)-1
 
