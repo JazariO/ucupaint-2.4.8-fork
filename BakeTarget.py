@@ -143,6 +143,7 @@ class YNewBakeTarget(bpy.types.Operator):
             ('DX_NORMAL', 'DirectX Normal', ''),
             ('DM', 'DA: Diffuse RGB, Metallic A', ''),
             ('NOS', 'NOS: Normal RG, Occlusion B, Roughness A (inverted to Smoothness)', ''),
+            ('ET', 'ET: Emission RGB, Tintmask A', '')
         ),
         default = 'BLANK',
         update = update_new_bake_target_preset
@@ -217,7 +218,7 @@ class YNewBakeTarget(bpy.types.Operator):
 
         elif self.preset == 'DM':
             for ch in yp.channels:
-                if ch.name in {'Color'}:
+                if ch.name == 'Color':
                     bt.r.channel_name = ch.name
                     bt.g.channel_name = ch.name
                     bt.b.channel_name = ch.name
@@ -225,13 +226,12 @@ class YNewBakeTarget(bpy.types.Operator):
                     bt.r.subchannel_index = '0'
                     bt.g.subchannel_index = '1'
                     bt.b.subchannel_index = '2'
-                elif ch.name in {'Metallic', }:
+                elif ch.name == 'Metallic':
                     bt.a.channel_name = ch.name
                     bt.a.subchannel_index = '0'
 
         elif self.preset == 'NOS':
             for ch in yp.channels:
-                print("ch.name = " + ch.name)
                 if ch.name == 'Normal':
                     bt.r.channel_name = ch.name
                     bt.g.channel_name = ch.name
@@ -243,6 +243,19 @@ class YNewBakeTarget(bpy.types.Operator):
                 elif ch.name in {'Roughness', 'R'}:
                     bt.a.channel_name = ch.name
                     bt.a.invert_value = True
+
+        elif self.preset == 'ET':
+            for ch in yp.channels:
+                if ch.name in {'Emission', 'Emission Color'}:
+                    bt.r.channel_name = ch.name
+                    bt.g.channel_name = ch.name
+                    bt.b.channel_name = ch.name
+                    
+                    bt.r.subchannel_index = '0'
+                    bt.g.subchannel_index = '1'
+                    bt.b.subchannel_index = '2'
+                elif ch.name == 'Tint Mask':
+                    bt.a.channel_name = ch.name
 
         yp.active_bake_target_index = len(yp.bake_targets)-1
 
