@@ -594,7 +594,7 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
 
     color : BoolProperty(name='Color', default=True)
     alpha : BoolProperty(name='Alpha', default=False)
-    ao : BoolProperty(name='Ambient Occlusion', default=False)
+    ao : BoolProperty(name='Ambient Occlusion', default=True)
     metallic : BoolProperty(name='Metallic', default=True)
     roughness : BoolProperty(name='Roughness', default=True)
     normal : BoolProperty(name='Normal', default=True)
