@@ -4292,19 +4292,19 @@ def main_draw(self, context):
 
     layout = self.layout
 
-    addon_updater_ops = get_package_module('.addon_updater_ops')
-    if addon_updater_ops:
-        need_restart = addon_updater_ops.draw_top_ui_panel(context, layout)
-        if need_restart: return
+    #addon_updater_ops = get_package_module('.addon_updater_ops')
+    #if addon_updater_ops:
+    #    need_restart = addon_updater_ops.draw_top_ui_panel(context, layout)
+    #    if need_restart: return
 
     # Extension platform update notification
-    if is_online() and not ypup.hide_update_notification and ypui.extension_update_state == 'AVAILABLE':
-        col = layout.column()
-        row_alert = col.row(align=True)
-        row_alert.alert = True
-        row_alert.operator("extensions.userpref_show_for_update", icon='ERROR', text='New version is available!') # + ypui.latest_version)
-        row_alert.alert = False
-        row_alert.operator("ext.pending_update", icon='PANEL_CLOSE', text='')
+    #if is_online() and not ypup.hide_update_notification and ypui.extension_update_state == 'AVAILABLE':
+    #    col = layout.column()
+    #    row_alert = col.row(align=True)
+    #    row_alert.alert = True
+    #    row_alert.operator("extensions.userpref_show_for_update", icon='ERROR', text='New version is available!') # + ypui.latest_version)
+    #    row_alert.alert = False
+    #    row_alert.operator("ext.pending_update", icon='PANEL_CLOSE', text='')
 
     icon = 'TRIA_DOWN' if ypui.show_object else 'TRIA_RIGHT'
     row = layout.row(align=True)
@@ -4457,8 +4457,11 @@ def main_draw(self, context):
 
     if not node:
         layout.label(text="No active " + get_addon_title() + " node!", icon='ERROR')
+        #layout.operator("wm.y_emission_tintmask_ypaint_node_setup", icon_value=lib.get_icon('nodetree'))
         layout.operator("wm.y_quick_ypaint_node_setup", icon_value=lib.get_icon('nodetree'))
-
+        # HACK(Jazz): make custom tintmask node setup button here
+        layout.label(text="A label has appeared.", icon='FUND')
+        layout.operator("wm.y_emission_tintmask_ypaint_node_setup", icon_value=lib.get_icon('nodetree'))
         # Test
         draw_test_ui(context=context, layout=layout)
 

@@ -1031,6 +1031,481 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
 
         return {'FINISHED'}
 
+class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions):
+    bl_idname = "wm.y_emission_tintmask_ypaint_node_setup"
+    bl_label = "Emission Tintmask " + get_addon_title() + " Node Setup"
+    bl_description = "Emission Tintmask " + get_addon_title() + " Node Setup"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    tree_name : StringProperty(
+        name = 'Tree Name'
+    )
+
+    set_material_name_from_tree_name : BoolProperty(
+        name = 'Also Set Material Name',
+        description = 'Also set material name from tree name',
+        default = False
+    )
+
+    type : EnumProperty(
+        name = 'Type',
+        items = (
+            ('BSDF_PRINCIPLED', 'Principled', ''),
+            ('BSDF_DIFFUSE', 'Diffuse', ''),
+            ('EMISSION', 'Emission', ''),
+        ),
+        default = 'BSDF_PRINCIPLED'
+    )
+
+    color : BoolProperty(name='Color', default=True)
+    alpha : BoolProperty(name='Alpha', default=False)
+    ao : BoolProperty(name='Ambient Occlusion', default=True)
+    metallic : BoolProperty(name='Metallic', default=True)
+    roughness : BoolProperty(name='Roughness', default=True)
+    normal : BoolProperty(name='Normal', default=True)
+    #emission : BoolProperty(name='Emission Color', default=True)
+    tintmask : BoolProperty(name='Tint Mask', default=True)
+
+    use_linear_blending : BoolProperty(
+        name = 'Use Linear Color Blending',
+        description = 'Use more accurate linear color blending (it will behave differently than Photoshop)',
+        default = True
+    )
+
+    switch_to_material_view : BoolProperty(
+        name = 'Switch to Material View',
+        description = 'Switch to material view so the node setup is automatically visible',
+        default = True
+    )
+
+    target_bsdf_name : StringProperty(default='')
+    not_on_material_view : BoolProperty(default=True)
+
+    @classmethod
+    def poll(cls, context):
+        return context.object
+
+    @classmethod
+    def description(self, context, properties):
+        return get_operator_description(self)
+
+    def invoke(self, context, event):
+        obj = context.object
+        mat = get_active_material()
+
+        valid_bsdf_types = ['BSDF_PRINCIPLED', 'BSDF_DIFFUSE', 'EMISSION']
+
+        # Set the tree name
+        mat = get_active_material()
+        self.tree_name = YP_GROUP_PREFIX + (mat.name if mat else obj.name)
+
+        # Get target bsdf
+        self.target_bsdf_name = ''
+        output = get_material_output(mat)
+        if output:
+            bsdf_node = get_closest_bsdf_backward(output, valid_bsdf_types)
+            if bsdf_node:
+                self.type = bsdf_node.type
+                self.target_bsdf_name = bsdf_node.name
+
+        self.not_on_material_view = is_not_in_material_view()
+
+        if get_user_preferences().skip_property_popups and not event.shift:
+            return self.execute(context)
+
+        return context.window_manager.invoke_props_dialog(self)
+
+    def check(self, context):
+        return True
+
+    def draw(self, context):
+        row = split_layout(self.layout, 0.35)
+
+        col = row.column()
+        col.label(text='Tree Name:')
+        col.separator()
+        col.label(text='Type:')
+        if self.type != 'EMISSION':
+            ccol = col.column(align=True)
+            ccol.label(text='Channels:')
+            if self.color:
+                ccol.label(text='')
+            ccol.label(text='')
+            if self.type == 'BSDF_PRINCIPLED':
+                ccol.label(text='')
+            ccol.label(text='')
+            ccol.label(text='')
+
+        if (self.color or self.type == 'EMISSION') and self.alpha:
+            if self.type == 'EMISSION': 
+                col.label(text='')
+
+            if is_bl_newer_than(2, 80) and not is_bl_newer_than(4, 2):
+                col.label(text='Blend Method:')
+                col.label(text='Shadow Method:')
+
+        col = row.column()
+        rrow = col.row(align=True)
+        rrow.prop(self, 'tree_name', text='')
+        rrow.prop(self, 'set_material_name_from_tree_name', text='', icon='MATERIAL_DATA')
+        col.separator()
+        col.prop(self, 'type', text='')
+        if self.type != 'EMISSION':
+            ccol = col.column(align=True)
+            ccol.prop(self, 'color', toggle=True)
+            if self.color:
+                ccol.prop(self, 'alpha', toggle=True)
+            ccol.prop(self, 'ao', toggle=True)
+            if self.type == 'BSDF_PRINCIPLED':
+                ccol.prop(self, 'metallic', toggle=True)
+            ccol.prop(self, 'roughness', toggle=True)
+            ccol.prop(self, 'normal', toggle=True)
+            ccol.prop(self, 'emission color', toggle=True)
+            ccol.prop(self, 'tintmask', toggle=True)
+        else:
+            ccol = col.column(align=True)
+            ccol.prop(self, 'alpha', text='Enable Alpha')
+
+        if (self.color or self.type == 'EMISSION') and self.alpha:
+            if is_bl_newer_than(2, 80) and not is_bl_newer_than(4, 2):
+                col.prop(self, 'blend_method', text='')
+                col.prop(self, 'shadow_method', text='')
+
+        col.prop(self, 'use_linear_blending')
+
+        if self.not_on_material_view:
+            col.prop(self, 'switch_to_material_view')
+
+    def execute(self, context):
+
+        obj = context.object
+
+        if not obj.data or not hasattr(obj.data, 'materials'):
+            self.report({'ERROR'}, "Cannot use " + get_addon_title() + " with object '" + obj.name + "'!")
+            return {'CANCELLED'}
+
+        mat = get_active_material()
+
+        if not mat:
+            material_name = self.tree_name if self.set_material_name_from_tree_name else obj.name
+            mat = bpy.data.materials.new(material_name)
+            if hasattr(mat, 'use_nodes'): mat.use_nodes = True
+
+            if len(obj.material_slots) > 0:
+                matslot = obj.material_slots[obj.active_material_index]
+                matslot.material = mat
+            else:
+                obj.data.materials.append(mat)
+
+            # Remove default nodes
+            for n in mat.node_tree.nodes:
+                mat.node_tree.nodes.remove(n)
+        elif self.set_material_name_from_tree_name:
+            mat.name = self.tree_name
+
+        if not mat.node_tree:
+            if hasattr(mat, 'use_nodes'): mat.use_nodes = True
+
+            # Remove default nodes
+            for n in mat.node_tree.nodes:
+                mat.node_tree.nodes.remove(n)
+
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+
+        ao_needed = self.ao and self.type != 'EMISSION'
+
+        main_bsdf = None
+        outsoc = None
+        ao_mul = None
+        tintmask_mul = None
+
+        # If target bsdf is used as main bsdf
+        target_bsdf = nodes.get(self.target_bsdf_name)
+        if target_bsdf and target_bsdf.type == self.type:
+            main_bsdf = target_bsdf
+            for l in main_bsdf.outputs[0].links:
+                outsoc = l.to_socket
+
+        # Get active material output
+        output = get_material_output(mat)
+
+        loc = Vector((0, 0))
+
+        # Create new group node
+        group_tree = create_new_group_tree(mat, self.tree_name)
+        node = nodes.new(type='ShaderNodeGroup')
+        node.node_tree = group_tree
+        node.select = True
+        nodes.active = node
+        mat.yp.active_ypaint_node = node.name
+
+        # BSDF node
+        if not main_bsdf:
+            if self.type == 'BSDF_PRINCIPLED':
+                if not is_bl_newer_than(2, 79):
+                    main_bsdf = nodes.new('ShaderNodeGroup')
+                    main_bsdf.node_tree = get_node_tree_lib(lib.BL278_BSDF)
+                else:
+                    main_bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+                    if 'Subsurface Radius' in main_bsdf.inputs:
+                        main_bsdf.inputs['Subsurface Radius'].default_value = (1.0, 0.2, 0.1) # Use eevee default value
+                    if 'Subsurface Color' in main_bsdf.inputs:
+                        main_bsdf.inputs['Subsurface Color'].default_value = (0.8, 0.8, 0.8, 1.0) # Use eevee default value
+            elif self.type == 'BSDF_DIFFUSE':
+                main_bsdf = nodes.new('ShaderNodeBsdfDiffuse')
+            elif self.type == 'EMISSION':
+                main_bsdf = nodes.new('ShaderNodeEmission')
+
+            if output: 
+                loc = output.location.copy()
+                loc.x += 200
+
+            node.location = loc.copy()
+            loc.x += 200
+        else:
+            loc = main_bsdf.location.copy()
+
+            # Move away already existing nodes
+            for n in mat.node_tree.nodes:
+
+                # Skip nodes with parents
+                if n.parent: continue
+
+                if n.location.x < loc.x:
+                    if ao_needed: n.location.x -= 400
+                    else: n.location.x -= 200
+
+            if ao_needed: loc.x -= 200
+            loc.x -= 200
+
+            if self.tintmask: loc.x -= 200
+            loc.x -= 200
+
+            node.location = loc.copy()
+            loc.x += 200
+
+        if ao_needed:
+            ao_mul = create_ao_node(mat, node)
+            loc.x += 200
+
+        if self.tintmask:
+            tintmask_mul = create_tintmask_node(mat, node)
+
+        main_bsdf.location = loc.copy()
+        if main_bsdf.type == 'BSDF_PRINCIPLED' and is_bl_newer_than(2, 80):
+            loc.x += 270
+        else: loc.x += 200
+
+        if not outsoc:
+            # Blender 3.1 has bug which prevent material output changes
+            if output and bpy.data.version >= (3, 1, 0) and bpy.data.version < (3, 2, 0):
+                outsoc = output.inputs[0]
+                output.location = loc.copy()
+                loc.x += 200
+            else:
+                mat_out = nodes.new(type='ShaderNodeOutputMaterial')
+                mat_out.is_active_output = True
+                outsoc = mat_out.inputs[0]
+
+                mat_out.location = loc.copy()
+                loc.x += 200
+                
+                if output: 
+                    output.is_active_output = False
+
+        links.new(main_bsdf.outputs[0], outsoc)
+
+        # Add new channels
+        ch_color = None
+        ch_alpha = None
+        ch_ao = None
+        ch_metallic = None
+        ch_roughness = None
+        ch_normal = None
+        ch_tintmask = None
+
+        if self.color or self.type == 'EMISSION':
+            ch_color = create_new_yp_channel(group_tree, 'Color', 'RGB', non_color=False)
+
+        if ch_color and self.alpha:
+            ch_alpha = create_new_yp_channel(group_tree, 'Alpha', 'VALUE', non_color=True)
+            ch_alpha.is_alpha = True
+            group_tree.yp.halt_update = True
+            ch_alpha.alpha_pair_name = ch_color.name
+            group_tree.yp.halt_update = False
+
+        if self.type != 'EMISSION':
+            if self.ao:
+                ch_ao = create_new_yp_channel(group_tree, 'Ambient Occlusion', 'RGB', non_color=True)
+
+            if self.type == 'BSDF_PRINCIPLED' and self.metallic:
+                ch_metallic = create_new_yp_channel(group_tree, 'Metallic', 'VALUE', non_color=True)
+
+            if self.roughness:
+                ch_roughness = create_new_yp_channel(group_tree, 'Roughness', 'VALUE', non_color=True)
+
+            if self.normal:
+                ch_normal = create_new_yp_channel(group_tree, 'Normal', 'NORMAL')
+
+            if self.tintmask:
+                ch_tintmask = create_new_yp_channel(group_tree, 'Tint Mask', 'VALUE', non_color=True)
+
+        # Update io
+        check_all_channel_ios(group_tree.yp, yp_node=node)
+
+        # Update linear blending
+        if self.use_linear_blending:
+            group_tree.yp.use_linear_blending = self.use_linear_blending
+
+        # HACK: Remap channel pointers, because sometimes pointers are lost at this time
+        ch_color = group_tree.yp.channels.get('Color')
+        ch_alpha = group_tree.yp.channels.get('Alpha')
+        ch_ao = group_tree.yp.channels.get('Ambient Occlusion')
+        ch_metallic = group_tree.yp.channels.get('Metallic')
+        ch_roughness = group_tree.yp.channels.get('Roughness')
+        ch_normal = group_tree.yp.channels.get('Normal')
+        ch_tintmask = group_tree.yp.channels.get('Tint Mask')
+
+        if ch_color:
+            inp = main_bsdf.inputs[0]
+
+            # Check original link
+            for l in inp.links:
+                links.new(l.from_socket, node.inputs[ch_color.name])
+
+            set_input_default_value(node, ch_color, inp.default_value)
+            if ch_ao and ao_mul:
+                ao_mixcol0, ao_mixcol1, ao_mixout = get_mix_color_indices(ao_mul)
+                links.new(node.outputs[ch_color.name], ao_mul.inputs[ao_mixcol0])
+                links.new(node.outputs[ch_ao.name], ao_mul.inputs[ao_mixcol1])
+                links.new(ao_mul.outputs[ao_mixout], inp)
+                # HACK(Jazz): tintmask
+            else:
+                links.new(node.outputs[ch_color.name], inp)
+
+        if ch_alpha:
+            default_value = do_alpha_setup(mat, node, ch_alpha)
+            set_material_methods(mat, self.blend_method, self.shadow_method)
+            set_input_default_value(node, ch_alpha, default_value)
+
+        if ch_ao:
+            set_input_default_value(node, ch_ao, (1, 1, 1))
+
+        if ch_metallic:
+            inp = main_bsdf.inputs['Metallic']
+
+            # Check original link
+            for l in inp.links:
+                links.new(l.from_socket, node.inputs[ch_metallic.name])
+
+            set_input_default_value(node, ch_metallic, inp.default_value)
+            #links.new(node.outputs[ch_metallic.io_index], inp)
+            links.new(node.outputs[ch_metallic.name], inp)
+
+        if ch_roughness:
+            inp = main_bsdf.inputs['Roughness']
+
+            # Check original link
+            for l in inp.links:
+                links.new(l.from_socket, node.inputs[ch_roughness.name])
+
+            set_input_default_value(node, ch_roughness, inp.default_value)
+            #links.new(node.outputs[ch_roughness.io_index], inp)
+            links.new(node.outputs[ch_roughness.name], inp)
+
+        if ch_normal:
+            inp = main_bsdf.inputs['Normal']
+
+            # Check original link
+            for l in inp.links:
+                links.new(l.from_socket, node.inputs[ch_normal.name])
+
+            set_input_default_value(node, ch_normal)
+            #links.new(node.outputs[ch_normal.io_index], inp)
+            links.new(node.outputs[ch_normal.name], inp)
+
+        if ch_tintmask:
+            set_input_default_value(node, ch_tintmask, 0)
+
+        # HACK(Jazz): if ch_emission:
+
+        # HACK(Jazz): create custom bake targets for _DM, _NOS, _ET by default
+        wm = context.window_manager
+        node = get_active_ypaint_node()
+        tree = node.node_tree
+        yp = node.node_tree.yp
+        ypui = wm.ypui
+
+        tree_name = tree.name.replace(get_addon_title() + ' ', '')
+        
+        # Set up _DM bake target
+        bt = yp.bake_targets.add()
+        bt.name = get_active_object().name + '_DM'
+        bt.use_float = False
+        bt.a.default_value = 1.0
+        
+        bt.r.channel_name = 'Color'
+        bt.g.channel_name = 'Color'
+        bt.b.channel_name = 'Color'
+
+        bt.r.subchannel_index = '0'
+        bt.g.subchannel_index = '1'
+        bt.b.subchannel_index = '2'
+        
+        bt.a.channel_name = 'Metallic'
+        bt.a.subchannel_index = '0'
+
+        # Set up _NOS bake target
+        bt = yp.bake_targets.add()
+        bt.name = get_active_object().name + '_NOS'
+        bt.use_float = False
+        bt.a.default_value = 1.0
+
+        bt.r.channel_name = 'Normal'
+        bt.g.channel_name = 'Normal'
+        bt.r.subchannel_index = '0'
+        bt.g.subchannel_index = '1'
+
+        bt.b.channel_name = 'Ambient Occlusion'
+        bt.a.channel_name = 'Roughness'
+        bt.a.invert_value = True
+
+        # Set up _ET bake target
+        '''
+        bt = yp.bake_targets.add()
+        bt.name = get_active_object().name + '_ET'
+        bt.use_float = False
+        bt.a.default_value = 1.0
+
+        bt.r.channel_name = 'Emission Color'
+        bt.g.channel_name = 'Emission Color'
+        bt.b.channel_name = 'Emission Color'
+                    
+        bt.r.subchannel_index = '0'
+        bt.g.subchannel_index = '1'
+        bt.b.subchannel_index = '2'
+
+        bt.a.channel_name = 'Tint Mask'
+        '''
+
+        # Disable overlay in Blender 2.8
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                if self.not_on_material_view and self.switch_to_material_view:
+                    if not is_bl_newer_than(2, 80):
+                        area.spaces[0].viewport_shade = 'MATERIAL'
+                    else: area.spaces[0].shading.type = 'MATERIAL'
+
+        # Expand channels now is enabled by default if it's the only yp node
+        if len([ng for ng in bpy.data.node_groups if hasattr(ng, 'yp') and ng.yp.is_ypaint_node]) == 1:
+            context.window_manager.ypui.expand_channels = True
+
+        # Update UI
+        context.window_manager.ypui.need_update = True
+
+        return {'FINISHED'}
+
 class YNewYPaintNode(bpy.types.Operator):
     bl_idname = "wm.y_add_new_ypaint_node"
     bl_label = "Add new " + get_addon_title() + " Node"
@@ -4977,6 +5452,7 @@ def register():
     bpy.utils.register_class(YSelectMaterialPolygons)
     bpy.utils.register_class(YRenameUVMaterial)
     bpy.utils.register_class(YQuickYPaintNodeSetup)
+    bpy.utils.register_class(YEmissionTintmaskYPaintNodeSetup)
     bpy.utils.register_class(YNewYPaintNode)
     bpy.utils.register_class(YPaintNodeInputCollItem)
     bpy.utils.register_class(YConnectYPaintChannel)
@@ -5044,6 +5520,7 @@ def unregister():
     bpy.utils.unregister_class(YSelectMaterialPolygons)
     bpy.utils.unregister_class(YRenameUVMaterial)
     bpy.utils.unregister_class(YQuickYPaintNodeSetup)
+    bpy.utils.unregister_class(YEmissionTintmaskYPaintNodeSetup)
     bpy.utils.unregister_class(YNewYPaintNode)
     bpy.utils.unregister_class(YPaintNodeInputCollItem)
     bpy.utils.unregister_class(YConnectYPaintChannel)
