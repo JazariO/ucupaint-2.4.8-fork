@@ -29,6 +29,7 @@ colorspace_items = (
 )
 
 AO_MULTIPLY = 'yP AO Multiply'
+TINTMASK_MULTIPLY = 'yP Tint Mask Multiply'
 
 def set_input_default_value(group_node, channel, custom_value=None):
     #channel = group_node.node_tree.yp.channels[index]
@@ -495,6 +496,75 @@ def create_ao_node(mat, node, channel=None, shift_other_nodes=False):
             node.inputs[channel.name].default_value = (1, 1, 1, 1)
 
     return ao_mul
+
+def create_tintmask_node(mat, node, channel=None, shift_other_nodes=False):
+    tintmask_mul = simple_new_mix_node(mat.node_tree)
+    print(type(tintmask_mul)) # bpy.types.ShaderNodeMix
+    tintmask_mixcol0, tintmask_mixcol1, tintmask_mixout = get_mix_color_indices(tintmask_mul)
+
+    # Set blend node
+    tintmask_mul.inputs[0].default_value = 1.0
+    tintmask_mul.blend_type = 'MULTIPLY'
+    tintmask_mul.label = get_addon_title() + ' Tint Mask Multiply'
+    tintmask_mul.name = TINTMASK_MULTIPLY
+
+    # Set default value
+    tintmask_mul.inputs[0].default_value = 1.0
+    tintmask_mul.inputs[tintmask_mixcol0].default_value = (1.0, 1.0, 1.0, 1.0)
+    tintmask_mul.inputs[tintmask_mixcol1].default_value = (1.0, 1.0, 1.0, 1.0)
+
+    # Set Tintmask multiply node location
+    loc = node.location.copy()
+    loc.x += 200
+    tintmask_mul.location = loc
+
+    print('printing names of nodes:')
+    for n in mat.node_tree.nodes:
+        print(n.name)
+
+    # Shift other nodes
+    if shift_other_nodes:
+        for n in mat.node_tree.nodes:
+            if n in {tintmask_mul, node}: continue
+            if n.location.x > node.location.x:
+                n.location.x += 200
+
+    # Connect node outputs to Tintmask multiply
+    if channel:
+        yp = channel.id_data.yp
+
+        # Get first color channel
+        ch_color = None
+        for ch in yp.channels:
+            if ch.type == 'RGB':
+                ch_color = ch
+                break
+
+        if ch_color and ch_color.name in node.outputs: 
+
+            outp = node.outputs[ch_color.name]
+
+            # Check original color connections
+            to_sockets = []
+            for link in outp.links:
+                to_sockets.append(link.to_socket)
+
+            # Connect to original socket connections
+            for soc in to_sockets:
+                mat.node_tree.links.new(tintmask_mul.outputs[tintmask_mixout], soc)
+
+            # Connect color channel to Tintmask multiply
+            mat.node_tree.links.new(outp, tintmask_mul.inputs[tintmask_mixcol0])
+
+        # Connect TintMask channel to Tintmask mix factor
+        if channel.name in node.outputs: 
+            mat.node_tree.links.new(node.outputs[channel.name], tintmask_mul.inputs[0])
+
+        # Set default value
+        if channel.name in node.inputs: 
+            node.inputs[channel.name].default_value = 0
+
+    return tintmask_mul
 
 class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions):
     bl_idname = "wm.y_quick_ypaint_node_setup"
@@ -1283,7 +1353,8 @@ class YAutoSetupNewYPaintChannel(bpy.types.Operator, BaseOperator.BlendMethodOpt
         description = 'Auto node setup for new channel',
         items = (
             ('ALPHA', 'Alpha', ''),
-            ('AO', 'Ambient Occlusion', '')
+            ('AO', 'Ambient Occlusion', ''),
+            ('TINTMASK', 'Tint Mask', '')
         ),
         default = 'ALPHA'
     )
@@ -1345,6 +1416,9 @@ class YAutoSetupNewYPaintChannel(bpy.types.Operator, BaseOperator.BlendMethodOpt
         elif self.mode == 'ALPHA':
             name = 'Alpha'
             ch_type = 'VALUE'
+        elif self.mode == 'TINTMASK':
+            name = 'Tint Mask'
+            ch_type = 'VALUE'
 
         # Check if channel with same name is already available
         same_channel = [c for c in yp.channels if c.name == name]
@@ -1376,6 +1450,8 @@ class YAutoSetupNewYPaintChannel(bpy.types.Operator, BaseOperator.BlendMethodOpt
         elif self.mode == 'ALPHA':
             make_channel_as_alpha(mat, node, channel, do_setup=True, move_index=True, ch_pair_name=self.alpha_pair_name)
             set_material_methods(mat, self.blend_method, self.shadow_method)
+        elif self.mode == 'TINTMASK':
+            create_tintmask_node(mat, node, channel, shift_other_nodes=True)
 
         # Set active channel to the newly created one
         channel = yp.channels.get(ch_name)
@@ -1901,6 +1977,21 @@ class YRemoveYPaintChannel(bpy.types.Operator):
                         mat.node_tree.links.new(si, so)
 
                 mat.node_tree.nodes.remove(ao_node)
+
+        # Delete special mix node for Tint Mask channel
+        if channel.name == 'Tint Mask':
+            tintmask_node = mat.node_tree.nodes.get(TINTMASK_MULTIPLY)
+            tintmask_mixcol0, tintmask_mixcol1, tintmask_mixout = get_mix_color_indices(tintmask_node)
+            if tintmask_node:
+                socket_ins = [l.from_socket for l in tintmask_node.inputs[tintmask_mixcol0].links]
+                socket_outs = [l.to_socket for l in tintmask_node.outputs[tintmask_mixout].links]
+
+                for si in socket_ins:
+                    for so in socket_outs:
+                        mat.node_tree.links.new(si, so)
+                
+                mat.node_tree.nodes.remove(tintmask_node)
+
 
         # Disable smooth bump and parallax if any of those are active
         if channel.type == 'NORMAL':
