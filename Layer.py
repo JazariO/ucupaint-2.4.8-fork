@@ -367,6 +367,9 @@ def add_new_layer(
         else: 
             ch.enable = False
 
+        if layer.type == 'AO' and yp.channels[i].name == 'Ambient Occlusion':
+            ch.enable = True
+
         if root_ch.type == 'NORMAL':
             ch.normal_map_type = normal_map_type
             
