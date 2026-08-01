@@ -4457,11 +4457,9 @@ def main_draw(self, context):
 
     if not node:
         layout.label(text="No active " + get_addon_title() + " node!", icon='ERROR')
-        #layout.operator("wm.y_emission_tintmask_ypaint_node_setup", icon_value=lib.get_icon('nodetree'))
         layout.operator("wm.y_quick_ypaint_node_setup", icon_value=lib.get_icon('nodetree'))
-        # HACK(Jazz): make custom tintmask node setup button here
-        layout.label(text="A label has appeared.", icon='FUND')
         layout.operator("wm.y_emission_tintmask_ypaint_node_setup", icon_value=lib.get_icon('nodetree'))
+
         # Test
         draw_test_ui(context=context, layout=layout)
 

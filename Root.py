@@ -499,7 +499,6 @@ def create_ao_node(mat, node, channel=None, shift_other_nodes=False):
 
 def create_tintmask_node(mat, node, channel=None, shift_other_nodes=False):
     tintmask_mul = simple_new_mix_node(mat.node_tree)
-    print(type(tintmask_mul)) # bpy.types.ShaderNodeMix
     tintmask_mixcol0, tintmask_mixcol1, tintmask_mixout = get_mix_color_indices(tintmask_mul)
 
     # Set blend node
@@ -745,7 +744,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
         links = mat.node_tree.links
 
         ao_needed = self.ao and self.type != 'EMISSION'
-        # HACK(Jazz): tint_needed
 
         main_bsdf = None
         outsoc = None
@@ -808,7 +806,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
                     else: n.location.x -= 200
 
             if ao_needed: loc.x -= 200
-            # HACK(Jazz): tintmask
             loc.x -= 200
 
             node.location = loc.copy()
@@ -816,7 +813,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
 
         if ao_needed:
             ao_mul = create_ao_node(mat, node)
-            # HACK(Jazz): tintmask
             loc.x += 200
 
         main_bsdf.location = loc.copy()
@@ -850,7 +846,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
         ch_metallic = None
         ch_roughness = None
         ch_normal = None
-        # HACK(Jazz): tintmask
 
         if self.color or self.type == 'EMISSION':
             ch_color = create_new_yp_channel(group_tree, 'Color', 'RGB', non_color=False)
@@ -865,7 +860,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
         if self.type != 'EMISSION':
             if self.ao:
                 ch_ao = create_new_yp_channel(group_tree, 'Ambient Occlusion', 'RGB', non_color=True)
-                # HACK(Jazz): tintmask
 
             if self.type == 'BSDF_PRINCIPLED' and self.metallic:
                 ch_metallic = create_new_yp_channel(group_tree, 'Metallic', 'VALUE', non_color=True)
@@ -890,7 +884,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
         ch_metallic = group_tree.yp.channels.get('Metallic')
         ch_roughness = group_tree.yp.channels.get('Roughness')
         ch_normal = group_tree.yp.channels.get('Normal')
-        # HACK(Jazz): tintmask
 
         if ch_color:
             inp = main_bsdf.inputs[0]
@@ -905,7 +898,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
                 links.new(node.outputs[ch_color.name], ao_mul.inputs[ao_mixcol0])
                 links.new(node.outputs[ch_ao.name], ao_mul.inputs[ao_mixcol1])
                 links.new(ao_mul.outputs[ao_mixout], inp)
-                # HACK(Jazz): tintmask
             else:
                 links.new(node.outputs[ch_color.name], inp)
 
@@ -916,7 +908,6 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
 
         if ch_ao:
             set_input_default_value(node, ch_ao, (1, 1, 1))
-            # HACK(Jazz): tintmask
 
         if ch_metallic:
             inp = main_bsdf.inputs['Metallic']
@@ -951,11 +942,7 @@ class YQuickYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMethodOptions)
             #links.new(node.outputs[ch_normal.io_index], inp)
             links.new(node.outputs[ch_normal.name], inp)
 
-        # HACK(Jazz): if ch_emission:
-
-        # HACK(Jazz): if ch_tintmask:
-
-        # HACK(Jazz): create custom bake targets for _DM, _NOS, _ET by default
+        # HACK(Jazz): create custom bake targets for _DM, _NOS by default
         wm = context.window_manager
         node = get_active_ypaint_node()
         tree = node.node_tree
@@ -1063,7 +1050,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
     metallic : BoolProperty(name='Metallic', default=True)
     roughness : BoolProperty(name='Roughness', default=True)
     normal : BoolProperty(name='Normal', default=True)
-    #emission : BoolProperty(name='Emission Color', default=True)
+    emission : BoolProperty(name='Emission Color', default=True)
     tintmask : BoolProperty(name='Tint Mask', default=True)
 
     use_linear_blending : BoolProperty(
@@ -1160,7 +1147,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
                 ccol.prop(self, 'metallic', toggle=True)
             ccol.prop(self, 'roughness', toggle=True)
             ccol.prop(self, 'normal', toggle=True)
-            ccol.prop(self, 'emission color', toggle=True)
+            ccol.prop(self, 'emission', toggle=True)
             ccol.prop(self, 'tintmask', toggle=True)
         else:
             ccol = col.column(align=True)
@@ -1279,7 +1266,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
             if ao_needed: loc.x -= 200
             loc.x -= 200
 
-            if self.tintmask: loc.x -= 200
+            if self.tintmask: loc.x -= 250
             loc.x -= 200
 
             node.location = loc.copy()
@@ -1291,6 +1278,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
 
         if self.tintmask:
             tintmask_mul = create_tintmask_node(mat, node)
+            loc.x += 200
 
         main_bsdf.location = loc.copy()
         if main_bsdf.type == 'BSDF_PRINCIPLED' and is_bl_newer_than(2, 80):
@@ -1324,6 +1312,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
         ch_roughness = None
         ch_normal = None
         ch_tintmask = None
+        ch_emission = None
 
         if self.color or self.type == 'EMISSION':
             ch_color = create_new_yp_channel(group_tree, 'Color', 'RGB', non_color=False)
@@ -1351,6 +1340,9 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
             if self.tintmask:
                 ch_tintmask = create_new_yp_channel(group_tree, 'Tint Mask', 'VALUE', non_color=True)
 
+            if self.emission:
+                ch_emission = create_new_yp_channel(group_tree, 'Emission Color', 'RGB', non_color=False)
+
         # Update io
         check_all_channel_ios(group_tree.yp, yp_node=node)
 
@@ -1366,6 +1358,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
         ch_roughness = group_tree.yp.channels.get('Roughness')
         ch_normal = group_tree.yp.channels.get('Normal')
         ch_tintmask = group_tree.yp.channels.get('Tint Mask')
+        ch_emission = group_tree.yp.channels.get('Emission Color')
 
         if ch_color:
             inp = main_bsdf.inputs[0]
@@ -1380,9 +1373,15 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
                 links.new(node.outputs[ch_color.name], ao_mul.inputs[ao_mixcol0])
                 links.new(node.outputs[ch_ao.name], ao_mul.inputs[ao_mixcol1])
                 links.new(ao_mul.outputs[ao_mixout], inp)
-                # HACK(Jazz): tintmask
             else:
                 links.new(node.outputs[ch_color.name], inp)
+
+            if ch_tintmask and tintmask_mul:
+                tintmask_mixcol0, tintmask_mixcol1, tintmask_mixout = get_mix_color_indices(tintmask_mul)
+                links.new(node.outputs[ch_color.name], tintmask_mul.inputs[tintmask_mixcol0])
+                links.new(node.outputs[ch_tintmask.name], tintmask_mul.inputs[0])
+                ao_mixcol0, ao_mixcol1, ao_mixout = get_mix_color_indices(ao_mul)
+                links.new(tintmask_mul.outputs[tintmask_mixout], ao_mul.inputs[ao_mixcol0])
 
         if ch_alpha:
             default_value = do_alpha_setup(mat, node, ch_alpha)
@@ -1428,7 +1427,16 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
         if ch_tintmask:
             set_input_default_value(node, ch_tintmask, 0)
 
-        # HACK(Jazz): if ch_emission:
+        if ch_emission:
+            inp = main_bsdf.inputs['Emission Color']
+
+            # Check original link
+            for l in inp.links:
+                links.new(l.from_socket, node.inputs[ch_emission.name])
+            
+            set_input_default_value(node, ch_emission, (0,0,0))
+            links.new(node.outputs[ch_emission.name], inp)
+            main_bsdf.inputs['Emission Strength'].default_value = 1
 
         # HACK(Jazz): create custom bake targets for _DM, _NOS, _ET by default
         wm = context.window_manager
@@ -1472,7 +1480,6 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
         bt.a.invert_value = True
 
         # Set up _ET bake target
-        '''
         bt = yp.bake_targets.add()
         bt.name = get_active_object().name + '_ET'
         bt.use_float = False
@@ -1487,7 +1494,7 @@ class YEmissionTintmaskYPaintNodeSetup(bpy.types.Operator, BaseOperator.BlendMet
         bt.b.subchannel_index = '2'
 
         bt.a.channel_name = 'Tint Mask'
-        '''
+        
 
         # Disable overlay in Blender 2.8
         for area in context.screen.areas:
