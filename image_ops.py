@@ -905,7 +905,7 @@ class YSaveAsImage(bpy.types.Operator, ExportHelper, BaseOperator.FileSelectOpti
         default = 'JP2'
     )
 
-    compression : IntProperty(name='Compression', default=15, min=0, max=100, subtype='PERCENTAGE')
+    compression : IntProperty(name='Compression', default=0, min=0, max=100, subtype='PERCENTAGE')
     quality : IntProperty(name='Quality', default=90, min=0, max=100, subtype='PERCENTAGE')
 
     use_jpeg2k_cinema_48 : BoolProperty(name='Cinema 48', default=False)
