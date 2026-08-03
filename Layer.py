@@ -2649,7 +2649,7 @@ class YOpenImagesFromMaterialToLayer(bpy.types.Operator, ImportHelper, BaseMulti
             ('IMAGE_NAMES', 'Read Image Names', 'Read all image names in material'),
             ('READ_NODE', 'Read Node Connections', 'Read node connections in material'),
         ),
-        default = 'READ_NODE'
+        default = 'IMAGE_NAMES'
     )
 
     @classmethod
